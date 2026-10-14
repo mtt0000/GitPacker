@@ -29,6 +29,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -85,7 +88,18 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            MaterialTheme {
+            val viewModel: MainViewModel = androidx.lifecycle.ViewModelProvider(this)[MainViewModel::class.java]
+
+            // Collect state inside setContent for initial fast theme setup
+            val isDarkTheme = when (viewModel.themeMode) {
+                "LIGHT" -> false
+                "DARK" -> true
+                else -> androidx.compose.foundation.isSystemInDarkTheme()
+            }
+
+            val colorScheme = if (isDarkTheme) darkColorScheme() else lightColorScheme()
+
+            MaterialTheme(colorScheme = colorScheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -129,8 +143,12 @@ class MainViewModel : ViewModel() {
     var resultText by mutableStateOf("")
     var errorMessage by mutableStateOf<String?>(null)
 
-    // Auth related
+    // Settings / Theme related
     var showAuthDialog by mutableStateOf(false)
+    var themeMode by mutableStateOf("SYSTEM")
+    private var preferencesManager: PreferencesManager? = null
+
+    // Auth related
     var currentToken by mutableStateOf<String?>(null)
     private var codeVerifier: String? = null
 
@@ -142,6 +160,14 @@ class MainViewModel : ViewModel() {
     fun initToken(context: Context) {
         val tokenManager = TokenManager(context)
         currentToken = tokenManager.getToken()
+
+        preferencesManager = PreferencesManager(context)
+        themeMode = preferencesManager?.getThemeMode() ?: "SYSTEM"
+    }
+
+    fun updateThemeMode(mode: String) {
+        themeMode = mode
+        preferencesManager?.saveThemeMode(mode)
     }
 
     fun clearToken(context: Context) {
@@ -333,17 +359,48 @@ fun GitPackerApp(initialUrl: String, onSaveFile: (String) -> Unit) {
     if (viewModel.showAuthDialog) {
         AlertDialog(
             onDismissRequest = { viewModel.showAuthDialog = false },
-            title = { Text("GitHub Authentication") },
+            title = { Text("Settings") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Login to access your private repositories.")
-                    if (viewModel.currentToken != null) {
-                        Text("Status: Logged In", color = MaterialTheme.colorScheme.primary)
-                    } else {
-                        Text("Status: Not Logged In", color = MaterialTheme.colorScheme.error)
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
+                    Text("Theme", style = MaterialTheme.typography.titleMedium)
+
+                    val themeOptions = listOf("SYSTEM" to "System default", "LIGHT" to "Light", "DARK" to "Dark")
+                    themeOptions.forEach { (mode, label) ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = (viewModel.themeMode == mode),
+                                    onClick = { viewModel.updateThemeMode(mode) },
+                                    role = Role.RadioButton
+                                )
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = (viewModel.themeMode == mode),
+                                onClick = null // null recommended for accessibility with parent selectable
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = label)
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    Text("GitHub Authentication", style = MaterialTheme.typography.titleMedium)
+
+                    Text("Login to access your private repositories.", style = MaterialTheme.typography.bodyMedium)
+                    if (viewModel.currentToken != null) {
+                        Text("Status: Logged In", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium)
+                    } else {
+                        Text("Status: Not Logged In", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     Button(
                         onClick = { viewModel.startOauthFlow(context) },
