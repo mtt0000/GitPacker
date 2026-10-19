@@ -79,10 +79,14 @@ class MainActivity : ComponentActivity() {
             val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
             if (sharedText != null) {
                 // Extract first github URL
-                val regex = "(https?://(?:www\\.)?github\\.com/[\\w.-]+/[\\w.-]+(?:/[\\w./-]+)?)".toRegex()
+                val regex = "(https?://(?:www\\.)?github\\.com/[\\w.-]+/[\\w.-]+(?:/[^\\s\"'>]*)?)".toRegex()
                 val match = regex.find(sharedText)
                 if (match != null) {
-                    initialUrl = match.value
+                    var url = match.value
+                    while (url.isNotEmpty() && (url.endsWith(".") || url.endsWith(",") || url.endsWith(")") || url.endsWith("]"))) {
+                        url = url.dropLast(1)
+                    }
+                    initialUrl = url
                 }
             }
         }
