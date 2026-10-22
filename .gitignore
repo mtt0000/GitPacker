@@ -24,3 +24,8 @@ app/build/
 *.dex
 *.class
 *.log
+
+# Signing
+keystore.properties
+*.jks
+*.keystore

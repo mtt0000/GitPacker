@@ -36,12 +36,18 @@ android {
         buildConfig = true
     }
 
-    signingConfigs {
-        create("release") {
-            storeFile = file("release.keystore")
-            storePassword = "password"
-            keyAlias = "release"
-            keyPassword = "password"
+    // Release key from keystore.properties (written by CI from the shared key secrets);
+    // without it the release build is signed with the debug key.
+    val keystorePropertiesFile = rootProject.file("keystore.properties")
+    var releaseSigning = signingConfigs.getByName("debug")
+    if (keystorePropertiesFile.exists()) {
+        val keystoreProperties = Properties()
+        FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
+        releaseSigning = signingConfigs.create("release") {
+            storeFile = file(keystoreProperties.getProperty("storeFile"))
+            storePassword = keystoreProperties.getProperty("storePassword")
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
         }
     }
 
@@ -52,7 +58,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = releaseSigning
         }
     }
     compileOptions {
